@@ -469,8 +469,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 }
             }
 
-            if (opcode == OP_CAT ||
-                opcode == OP_SUBSTR ||
+            if (opcode == OP_SUBSTR ||
                 opcode == OP_LEFT ||
                 opcode == OP_RIGHT ||
                 opcode == OP_INVERT ||
@@ -533,6 +532,19 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 //
                 case OP_NOP:
                     break;
+
+                case OP_CAT:
+                {
+                    if (stack.size() < 2)
+                        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+                    valtype& vch1 = stacktop(-2);
+                    valtype& vch2 = stacktop(-1);
+                    if (vch1.size() + vch2.size() > MAX_SCRIPT_ELEMENT_SIZE)
+                        return set_error(serror, SCRIPT_ERR_PUSH_SIZE);
+                    vch1.insert(vch1.end(), vch2.begin(), vch2.end());
+                    stack.pop_back();
+                }
+                break;
 
                 case OP_CHECKLOCKTIMEVERIFY:
                 {
@@ -1963,8 +1975,10 @@ static bool ExecuteWitnessScript(const Span<const valtype>& stack_span, const CS
                 // Note how this condition would not be reached if an unknown OP_SUCCESSx was found
                 return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
             }
+
+            const bool op_cat_is_op_success = !(flags & SCRIPT_VERIFY_TAPSCRIPT_OP_CAT);
             // New opcodes will be listed here. May use a different sigversion to modify existing opcodes.
-            if (IsOpSuccess(opcode)) {
+            if (IsOpSuccess(opcode) || (op_cat_is_op_success && opcode == OP_CAT)) {
                 if (flags & SCRIPT_VERIFY_DISCOURAGE_OP_SUCCESS) {
                     return set_error(serror, SCRIPT_ERR_DISCOURAGE_OP_SUCCESS);
                 }
